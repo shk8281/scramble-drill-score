@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scramble Play Viewer</title>
+<style>
+  :root {
+    --bg: #15171c; --panel: #1e2128; --line: #2e323b; --fg: #e9e9ec; --muted: #9aa0ab;
+    --off: #4a8fe7; --def: #e5604f; --qb: #f2c14e; --target: #36d399; --accent: #8b5cf6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  .app { display: grid; grid-template-columns: 300px 1fr; min-height: 100vh; }
+  aside { border-right: 1px solid var(--line); padding: 16px; overflow-y: auto; max-height: 100vh; }
+  h1 { font-size: 18px; margin: 0 0 2px; }
+  .sub { color: var(--muted); font-size: 12px; margin: 0 0 14px; }
+  .chips { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .chip { border: 1px solid var(--line); background: transparent; color: var(--fg); border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+  .chip.on { background: var(--accent); border-color: var(--accent); }
+  .play { padding: 9px 10px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; margin-bottom: 4px; }
+  .play:hover { background: var(--panel); }
+  .play.on { background: var(--panel); border-color: var(--accent); }
+  .play .t { font-weight: 600; font-size: 13px; }
+  .play .m { color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; }
+  .pos { color: var(--target); } .neg { color: var(--def); }
+  main { padding: 16px 20px; min-width: 0; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .head h2 { margin: 0; font-size: 17px; }
+  .desc { color: var(--muted); font-size: 12px; margin: 4px 0 0; max-width: 820px; }
+  .badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge.C { background: rgba(54,211,153,.15); color: var(--target); }
+  .badge.X { background: rgba(229,96,79,.15); color: var(--def); }
+  .stage { position: relative; margin-top: 12px; }
+  canvas { width: 100%; display: block; border-radius: 10px; cursor: ew-resize; }
+  .tip { position: absolute; pointer-events: none; background: #0d0f12ee; border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; font-size: 12px; white-space: nowrap; display: none; }
+  .phase { position: absolute; left: 12px; top: 10px; background: #0d0f12cc; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; }
+  .timeline { margin-top: 12px; display: flex; align-items: center; gap: 12px; }
+  button.ctl { background: var(--accent); color: white; border: 0; border-radius: 8px; padding: 7px 14px; font-weight: 600; cursor: pointer; min-width: 74px; }
+  select { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
+  .track { position: relative; flex: 1; height: 34px; }
+  .track input { position: absolute; inset: 8px 0 auto 0; width: 100%; accent-color: var(--accent); cursor: grab; }
+  .mark { position: absolute; top: 24px; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .mark::before { content: ""; position: absolute; left: 50%; top: -10px; width: 2px; height: 8px; background: currentColor; }
+  .mark.snap { color: #c8ccd4; } .mark.start { color: var(--qb); } .mark.throw { color: var(--target); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 24px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .card .l { color: var(--muted); font-size: 12px; }
+  .card .v { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; color: var(--muted); font-size: 12px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+  .help { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  label.tg { color: var(--muted); font-size: 12px; display: flex; gap: 5px; align-items: center; cursor: pointer; }
+  @media (max-width: 860px) { .app { grid-template-columns: 1fr; } aside { max-height: 300px; border-right: 0; border-bottom: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>Scramble Play Viewer</h1>
+    <p class="sub">Real 2021 tracking data, weeks 1-8. Pick a play, then drag the timeline.</p>
+    <div class="chips">
+      <button class="chip on" data-f="all">All</button>
+      <button class="chip" data-f="good">Gained 1+ yd</button>
+      <button class="chip" data-f="bad">Lost ground</button>
+    </div>
+    <div id="list"></div>
+  </aside>
+  <main>
+    <div class="head">
+      <div>
+        <h2 id="title"></h2>
+        <p class="desc" id="desc"></p>
+      </div>
+      <span class="badge" id="result"></span>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="field"></canvas>
+      <div class="phase" id="phase"></div>
+      <div class="tip" id="tip"></div>
+    </div>
+    <div class="timeline">
+      <button class="ctl" id="playBtn">Play</button>
+      <div class="track" id="track">
+        <input type="range" id="slider" min="0" max="1" value="0" step="1" aria-label="Play timeline">
+      </div>
+      <select id="speed" aria-label="Playback speed">
+        <option value="0.25">0.25x</option><option value="0.5" selected>0.5x</option><option value="1">1x</option>
+      </select>
+      <label class="tg"><input type="checkbox" id="trails" checked> Trails</label>
+    </div>
+    <div class="cards">
+      <div class="card"><div class="l">Time since snap</div><div class="v" id="cTime">0.0 s</div></div>
+      <div class="card"><div class="l">Tracked receiver separation now</div><div class="v" id="cSep">-</div></div>
+      <div class="card"><div class="l">At scramble start</div><div class="v" id="cStart">-</div></div>
+      <div class="card"><div class="l">At the throw</div><div class="v" id="cThrow">-</div></div>
+      <div class="card"><div class="l">Separation gained</div><div class="v" id="cGain">-</div></div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--off)"></i>Offense</span>
+      <span><i style="background:var(--def)"></i>Defense</span>
+      <span><i style="background:var(--qb)"></i>Quarterback</span>
+      <span><i style="background:var(--target);box-shadow:0 0 0 2px #fff"></i>Tracked receiver (green line = gap to nearest defender)</span>
+      <span><i style="background:#8b5a2b"></i>Ball</span>
+      <span><i style="background:rgba(242,193,78,.35);border-radius:2px"></i>QB lane: the scramble starts when the QB leaves it (3+ yds sideways)</span>
+      <span><i style="background:#5aa7ff;border-radius:2px"></i>Line of scrimmage</span>
+    </div>
+    <p class="help">Drag the timeline or drag left and right on the field to scrub. Click any receiver to track his separation. Hover a dot to see the player. Space plays and pauses, arrow keys step one frame (0.1 s).</p>
+  </main>
+</div>
+<script>
+const PLAYS = /*__PLAYS__*/[];
+const $ = (id) => document.getElementById(id);
+const cv = $("field"), ctx = cv.getContext("2d");
+let play = null, fi = 0, tracked = null, timer = null, filter = "all", view = null, hoverId = null;
+
+function renderList() {
+  const list = $("list"); list.replaceChildren();
+  PLAYS.filter(p => filter === "all" || (filter === "good" ? p.gained >= 1 : p.gained < 0)).forEach(p => {
+    const el = document.createElement("div");
+    el.className = "play" + (play && p.key === play.key ? " on" : "");
+    const t = document.createElement("div"); t.className = "t"; t.textContent = p.title.split(",")[0];
+    const m = document.createElement("div"); m.className = "m";
+    const a = document.createElement("span"); a.textContent = p.title.split(", ").slice(1).join(", ");
+    const b = document.createElement("span"); b.className = p.gained >= 0 ? "pos" : "neg";
+    b.textContent = (p.gained >= 0 ? "+" : "") + p.gained.toFixed(1) + " yd, " + (p.result === "Complete" ? "C" : "Inc");
+    m.append(a, b); el.append(t, m);
+    el.onclick = () => load(p);
+    list.append(el);
+  });
+}
+
+function load(p) {
+  stop(); play = p; tracked = p.target; fi = 0;
+  $("title").textContent = p.title;
+  $("desc").textContent = "Q" + p.q + ", " + ["", "1st", "2nd", "3rd", "4th"][p.down] + " & " + p.togo + ". " + p.desc;
+  const r = $("result"); r.textContent = p.result; r.className = "badge " + (p.result === "Complete" ? "C" : "X");
+  const n = p.ball.length; $("slider").max = n - 1; $("slider").value = 0;
+  // camera: fit everyone over the whole play, with padding
+  let xs = [], ys = [];
+  p.players.forEach(pl => pl.xy.forEach(([x, y]) => { if (x >= 0) { xs.push(x / 10); ys.push(y / 10); } }));
+  const x0 = Math.max(0, Math.min(...xs) - 5), x1 = Math.min(120, Math.max(...xs) + 5);
+  view = { x0, x1 };
+  document.querySelectorAll(".mark").forEach(m => m.remove());
+  [["snap", "Snap", p.snap], ["start", "Scramble starts", p.start], ["throw", "Throw", p.throw]].forEach(([c, label, f]) => {
+    const m = document.createElement("div"); m.className = "mark " + c; m.textContent = label;
+    m.style.left = ((f - p.f0) / (n - 1) * 100) + "%"; $("track").append(m);
+  });
+  $("cStart").textContent = p.sepStart.toFixed(1) + " yd";
+  $("cThrow").textContent = p.sepThrow.toFixed(1) + " yd";
+  const g = $("cGain"); g.textContent = (p.gained >= 0 ? "+" : "") + p.gained.toFixed(1) + " yd"; g.className = "v " + (p.gained >= 0 ? "pos" : "neg");
+  renderList(); resize();
+}
+
+function resize() {
+  if (!view) return;
+  const w = cv.parentElement.clientWidth, ratio = 53.3 / (view.x1 - view.x0);
+  const h = Math.min(w * ratio, window.innerHeight * 0.62);
+  const dpr = window.devicePixelRatio || 1;
+  cv.style.height = h + "px"; cv.width = w * dpr; cv.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+const sx = (x) => (x - view.x0) / (view.x1 - view.x0) * cv.clientWidth;
+const sy = (y) => (53.3 - y) / 53.3 * cv.clientHeight;
+const at = (pl, f) => { const v = pl.xy[f]; return v && v[0] >= 0 ? [v[0] / 10, v[1] / 10] : null; };
+
+function nearestDef(f, pt) {
+  let best = null;
+  play.players.forEach(pl => { if (pl.r !== "Coverage") return; const q = at(pl, f); if (!q) return;
+    const d = Math.hypot(q[0] - pt[0], q[1] - pt[1]); if (!best || d < best.d) best = { d, q }; });
+  return best;
+}
+
+function draw() {
+  const W = cv.clientWidth, H = cv.clientHeight, p = play, f = fi, frame = p.f0 + f;
+  ctx.fillStyle = "#2f6b3a"; ctx.fillRect(0, 0, W, H);
+  for (let x = 0; x <= 120; x += 5) { // yard lines
+    if (x < view.x0 - 1 || x > view.x1 + 1) continue;
+    ctx.strokeStyle = x % 10 === 0 ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.22)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(sx(x), 0); ctx.lineTo(sx(x), H); ctx.stroke();
+    if (x % 10 === 0 && x > 10 && x < 110) { const yd = x <= 60 ? x - 10 : 110 - x;
+      ctx.fillStyle = "rgba(255,255,255,.5)"; ctx.font = "600 13px Segoe UI"; ctx.textAlign = "center"; ctx.fillText(yd, sx(x), H - 8); }
+  }
+  ctx.strokeStyle = "#5aa7ff"; ctx.lineWidth = 2; ctx.setLineDash([6, 5]); // line of scrimmage
+  ctx.beginPath(); ctx.moveTo(sx(p.los), 0); ctx.lineTo(sx(p.los), H); ctx.stroke(); ctx.setLineDash([]);
+  // QB lateral band: the 3-yard rule that defines the scramble start
+  const qb = p.players.find(pl => pl.id === p.qb), q0 = at(qb, p.snap - p.f0);
+  if (q0) { ctx.fillStyle = "rgba(242,193,78,.10)"; ctx.fillRect(sx(q0[0] - 8), sy(q0[1] + 3), sx(q0[0] + 2) - sx(q0[0] - 8), sy(q0[1] - 3) - sy(q0[1] + 3)); }
+  if ($("trails").checked) p.players.forEach(pl => {
+    if (!(pl.id === tracked || pl.id === p.qb)) return;
+    ctx.strokeStyle = pl.id === p.qb ? "rgba(242,193,78,.6)" : "rgba(54,211,153,.7)"; ctx.lineWidth = 2; ctx.beginPath();
+    let started = false; for (let k = 0; k <= f; k++) { const q = at(pl, k); if (!q) continue;
+      if (!started) { ctx.moveTo(sx(q[0]), sy(q[1])); started = true; } else ctx.lineTo(sx(q[0]), sy(q[1])); } ctx.stroke();
+  });
+  const tp = p.players.find(pl => pl.id === tracked), tq = tp && at(tp, f), nd = tq && nearestDef(f, tq);
+  if (nd) { ctx.strokeStyle = "#36d399"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(sx(tq[0]), sy(tq[1])); ctx.lineTo(sx(nd.q[0]), sy(nd.q[1])); ctx.stroke();
+    const mx = (sx(tq[0]) + sx(nd.q[0])) / 2, my = (sy(tq[1]) + sy(nd.q[1])) / 2;
+    ctx.font = "700 13px Segoe UI"; const label = nd.d.toFixed(1) + " yd", w = ctx.measureText(label).width + 10;
+    ctx.fillStyle = "#0d0f12dd"; ctx.fillRect(mx - w / 2, my - 20, w, 18); ctx.fillStyle = "#36d399"; ctx.textAlign = "center"; ctx.fillText(label, mx, my - 6); }
+  const R = Math.max(7, Math.min(11, W / 90));
+  p.players.forEach(pl => { const q = at(pl, f); if (!q) return;
+    ctx.beginPath(); ctx.arc(sx(q[0]), sy(q[1]), R, 0, Math.PI * 2);
+    ctx.fillStyle = pl.id === p.qb ? "#f2c14e" : pl.id === tracked ? "#36d399" : pl.o ? "#4a8fe7" : "#e5604f"; ctx.fill();
+    ctx.lineWidth = pl.id === tracked || pl.id === hoverId ? 3 : 1; ctx.strokeStyle = pl.id === tracked || pl.id === hoverId ? "#fff" : "rgba(0,0,0,.45)"; ctx.stroke();
+    ctx.fillStyle = pl.id === p.qb || pl.id === tracked ? "#111" : "#fff"; ctx.font = "700 " + Math.round(R * 0.95) + "px Segoe UI"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(pl.j, sx(q[0]), sy(q[1]) + 0.5); ctx.textBaseline = "alphabetic"; });
+  const b = p.ball[f]; if (b && b[0] >= 0) { ctx.fillStyle = "#8b5a2b"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(sx(b[0] / 10), sy(b[1] / 10), 6, 4, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  // phase + cards
+  const ph = frame < p.snap ? "Pre-snap" : frame < p.start ? "In the pocket" : frame <= p.throw ? "Scrambling" : "Ball in the air";
+  $("phase").textContent = ph + "  |  " + ((frame - p.snap) / 10).toFixed(1) + " s";
+  $("cTime").textContent = ((frame - p.snap) / 10).toFixed(1) + " s";
+  $("cSep").textContent = nd ? nd.d.toFixed(1) + " yd" : "-";
+  $("slider").value = f;
+}
+
+function stop() { clearInterval(timer); timer = null; $("playBtn").textContent = "Play"; }
+function start() {
+  if (fi >= play.ball.length - 1) fi = 0;
+  $("playBtn").textContent = "Pause";
+  timer = setInterval(() => { if (fi >= play.ball.length - 1) return stop(); fi++; draw(); }, 100 / +$("speed").value);
+}
+$("playBtn").onclick = () => timer ? stop() : start();
+$("slider").oninput = (e) => { stop(); fi = +e.target.value; draw(); };
+$("speed").onchange = () => { if (timer) { stop(); start(); } };
+$("trails").onchange = draw;
+document.querySelectorAll(".chip").forEach(c => c.onclick = () => {
+  document.querySelectorAll(".chip").forEach(x => x.classList.remove("on")); c.classList.add("on"); filter = c.dataset.f; renderList(); });
+
+function hit(e) {
+  const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  let best = null; play.players.forEach(pl => { const q = at(pl, fi); if (!q) return;
+    const d = Math.hypot(sx(q[0]) - mx, sy(q[1]) - my); if (d < 14 && (!best || d < best.d)) best = { d, pl }; });
+  return best && best.pl;
+}
+let drag = null;
+cv.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, f: fi, moved: false }; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener("pointermove", (e) => {
+  if (drag) { const dx = e.clientX - drag.x; if (Math.abs(dx) > 3) { drag.moved = true; stop();
+      fi = Math.max(0, Math.min(play.ball.length - 1, Math.round(drag.f + dx / cv.clientWidth * play.ball.length))); draw(); } return; }
+  const pl = hit(e), tip = $("tip");
+  hoverId = pl ? pl.id : null; draw();
+  if (!pl) { tip.style.display = "none"; return; }
+  const r = cv.getBoundingClientRect();
+  tip.textContent = "#" + pl.j + " " + pl.n + " (" + pl.pos + ")" + (pl.r ? ", " + pl.r : "") + (pl.r === "Pass Route" ? ". Click to track" : "");
+  tip.style.display = "block"; tip.style.left = Math.min(e.clientX - r.left + 14, r.width - tip.offsetWidth - 4) + "px"; tip.style.top = (e.clientY - r.top + 14) + "px";
+});
+cv.addEventListener("pointerup", (e) => { const was = drag; drag = null;
+  if (was && !was.moved) { const pl = hit(e); if (pl && pl.r === "Pass Route") { tracked = pl.id; draw(); } } });
+cv.addEventListener("pointerleave", () => { $("tip").style.display = "none"; hoverId = null; if (play) draw(); });
+document.addEventListener("keydown", (e) => {
+  if (e.code === "Space") { e.preventDefault(); timer ? stop() : start(); }
+  if (e.code === "ArrowRight") { stop(); fi = Math.min(play.ball.length - 1, fi + 1); draw(); }
+  if (e.code === "ArrowLeft") { stop(); fi = Math.max(0, fi - 1); draw(); }
+});
+window.addEventListener("resize", resize);
+renderList(); if (PLAYS.length) load(PLAYS.find(p => p.result === "Complete") || PLAYS[0]);
+</script>
+</body>
+</html>

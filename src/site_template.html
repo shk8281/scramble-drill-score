@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scramble Drill Score</title>
+<meta name="description" content="When the QB scrambles, receivers who gain a yard of separation are caught far more often. NFL Big Data Bowl entry with an interactive play viewer.">
+<style>
+  :root {
+    --bg: #15171c; --panel: #1e2128; --line: #2e323b; --fg: #e9e9ec; --muted: #9aa0ab;
+    --off: #4a8fe7; --def: #e5604f; --qb: #f2c14e; --target: #36d399; --accent: #8b5cf6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  .app { display: grid; grid-template-columns: 280px 1fr; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #181a20; }
+  .app aside { border-right: 1px solid var(--line); padding: 14px; overflow-y: auto; max-height: 780px; }
+  .app h1 { font-size: 16px; margin: 0 0 2px; }
+  .sub { color: var(--muted); font-size: 12px; margin: 0 0 14px; }
+  .chips { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .chip { border: 1px solid var(--line); background: transparent; color: var(--fg); border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+  .chip.on { background: var(--accent); border-color: var(--accent); }
+  .play { padding: 9px 10px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; margin-bottom: 4px; }
+  .play:hover { background: var(--panel); }
+  .play.on { background: var(--panel); border-color: var(--accent); }
+  .play .t { font-weight: 600; font-size: 13px; }
+  .play .m { color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; }
+  .pos { color: var(--target); } .neg { color: var(--def); }
+  .app main { padding: 16px 18px; min-width: 0; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .head h2 { margin: 0; font-size: 17px; }
+  .desc { color: var(--muted); font-size: 12px; margin: 4px 0 0; max-width: 820px; }
+  .badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge.C { background: rgba(54,211,153,.15); color: var(--target); }
+  .badge.X { background: rgba(229,96,79,.15); color: var(--def); }
+  .stage { position: relative; margin-top: 12px; }
+  canvas { width: 100%; display: block; border-radius: 10px; cursor: ew-resize; }
+  .tip { position: absolute; pointer-events: none; background: #0d0f12ee; border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; font-size: 12px; white-space: nowrap; display: none; }
+  .phase { position: absolute; left: 12px; top: 10px; background: #0d0f12cc; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; }
+  .timeline { margin-top: 12px; display: flex; align-items: center; gap: 12px; }
+  button.ctl { background: var(--accent); color: white; border: 0; border-radius: 8px; padding: 7px 14px; font-weight: 600; cursor: pointer; min-width: 74px; }
+  select { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
+  .track { position: relative; flex: 1; height: 34px; }
+  .track input { position: absolute; inset: 8px 0 auto 0; width: 100%; accent-color: var(--accent); cursor: grab; }
+  .mark { position: absolute; top: 24px; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .mark::before { content: ""; position: absolute; left: 50%; top: -10px; width: 2px; height: 8px; background: currentColor; }
+  .mark.snap { color: #c8ccd4; } .mark.start { color: var(--qb); } .mark.throw { color: var(--target); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 24px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .card .l { color: var(--muted); font-size: 12px; }
+  .card .v { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; color: var(--muted); font-size: 12px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+  .help { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  label.tg { color: var(--muted); font-size: 12px; display: flex; gap: 5px; align-items: center; cursor: pointer; }
+  @media (max-width: 860px) { .app { grid-template-columns: 1fr; } .app aside { max-height: 300px; border-right: 0; border-bottom: 1px solid var(--line); } }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+  header.hero { padding: 48px 0 28px; border-bottom: 1px solid var(--line); background: radial-gradient(1200px 400px at 20% -10%, rgba(139,92,246,.18), transparent 60%); }
+  .eyebrow { color: var(--accent); font-weight: 600; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; margin: 0 0 8px; }
+  header h1 { font-size: 40px; line-height: 1.1; margin: 0 0 10px; }
+  .q { font-size: 19px; color: #c9ccd3; margin: 0 0 22px; max-width: 760px; }
+  .big { display: flex; gap: 16px; flex-wrap: wrap; align-items: stretch; }
+  .bigcard { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; min-width: 220px; flex: 1; }
+  .bigcard .n { font-size: 44px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .bigcard .d { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .bigcard.win .n { color: var(--target); } .bigcard.lose .n { color: #c9ccd3; }
+  .vs { align-self: center; color: var(--muted); font-weight: 700; }
+  .lede { margin: 18px 0 0; max-width: 820px; color: #d5d7dc; }
+  nav.toc { position: sticky; top: 0; z-index: 5; background: #15171cee; backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+  nav.toc .wrap { display: flex; gap: 18px; overflow-x: auto; padding-top: 10px; padding-bottom: 10px; }
+  nav.toc a { color: var(--muted); text-decoration: none; font-size: 13px; white-space: nowrap; }
+  nav.toc a:hover { color: var(--fg); }
+  section.s { padding: 36px 0 8px; }
+  section.s h2 { font-size: 24px; margin: 0 0 6px; }
+  .lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .kpi .v { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .kpi .l { color: var(--muted); font-size: 12px; }
+  .two { display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px; align-items: start; }
+  .chart { background: #fff; border-radius: 12px; padding: 8px; }
+  .chart img { width: 100%; display: block; }
+  table.t { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; }
+  table.t th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  table.t td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  table.t td.r, table.t th.r { text-align: right; }
+  .tw { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  .bar { height: 8px; border-radius: 4px; background: var(--target); display: inline-block; vertical-align: middle; }
+  .bar.n { background: var(--def); }
+  .take { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .take .card h3 { margin: 0 0 6px; font-size: 15px; }
+  .take .card p { margin: 0; color: #c9ccd3; font-size: 14px; }
+  ol.m li, ul.m li { margin-bottom: 6px; color: #c9ccd3; }
+  input.search { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 240px; margin-bottom: 10px; }
+  table.t th.sort { cursor: pointer; } table.t th.sort:hover { color: var(--fg); }
+  footer { color: var(--muted); font-size: 12px; padding: 30px 0 50px; border-top: 1px solid var(--line); margin-top: 36px; }
+  footer a { color: #b9a4ff; }
+  @media (max-width: 900px) { .two { grid-template-columns: 1fr; } header h1 { font-size: 30px; } }
+</style>
+</head>
+<body>
+
+<header class="hero"><div class="wrap">
+  <p class="eyebrow">NFL Big Data Bowl · Scramble Drill Score</p>
+  <h1>When the play breaks down, keep working.</h1>
+  <p class="q">When the quarterback scrambles, does it pay for receivers to keep working to get open?</p>
+  <div class="big">
+    <div class="bigcard win"><div class="n" id="hiPct"></div><div class="d">caught when the receiver gained 1+ yard of separation during the scramble (<span id="hiKN"></span>)</div></div>
+    <div class="vs">vs</div>
+    <div class="bigcard lose"><div class="n" id="loPct"></div><div class="d">caught when he did not (<span id="loKN"></span>)</div></div>
+  </div>
+  <p class="lede">Using 2021 weeks 1-8 player tracking, we measured how much separation every receiver gained between the moment the QB left the pocket and the throw. Gaining just one yard is associated with a much higher catch rate (two-sided p = <span id="p1"></span>), and the effect holds after controlling for where the receiver started and his position (odds ratio <span id="or1"></span> per yard, p <span id="orp1"></span>).</p>
+</div></header>
+
+<nav class="toc"><div class="wrap">
+  <a href="#numbers">Key numbers</a><a href="#payoff">The payoff</a><a href="#viewer">Watch the plays</a><a href="#leaders">Leaderboard</a><a href="#positions">By position</a><a href="#takeaways">Takeaways</a><a href="#method">Method and limits</a>
+</div></nav>
+
+<main class="wrap">
+  <section class="s" id="numbers">
+    <h2>Key numbers</h2>
+    <p class="lead">Every figure on this page is computed from the tracking data by <code>main.py</code> and <code>src/build_site.py</code>.</p>
+    <div class="kpis" id="kpis"></div>
+  </section>
+
+  <section class="s" id="payoff">
+    <h2>The payoff starts at about one yard</h2>
+    <p class="lead">Completion rate of targeted receivers, grouped by how much separation they gained during the scramble. Error bars are 95% intervals.</p>
+    <div class="two">
+      <div class="chart"><img src="__IMG_PAYOFF__" alt="Completion rate by separation gained during QB scramble"></div>
+      <div class="tw"><table class="t" id="bucketTable"><thead><tr><th>Separation gained</th><th class="r">Targets</th><th class="r">Caught</th><th class="r">Catch %</th><th class="r">95% interval</th></tr></thead><tbody></tbody></table>
+      <p style="color:var(--muted);font-size:12px;margin:10px 12px">The "more than 3 yards" group has few plays, so its small dip is within the margin of error.</p></div>
+    </div>
+  </section>
+
+  <section class="s" id="viewer">
+    <h2>Watch the plays</h2>
+    <p class="lead">Real tracking data at 10 frames per second. Pick a play, then drag the timeline or drag across the field. The green line is the tracked receiver's gap to the nearest defender. Click any receiver to track him instead.</p>
+    <div class="app">
+  <aside>
+    <h1>Scramble Play Viewer</h1>
+    <p class="sub">Real 2021 tracking data, weeks 1-8. Pick a play, then drag the timeline.</p>
+    <div class="chips">
+      <button class="chip on" data-f="all">All</button>
+      <button class="chip" data-f="good">Gained 1+ yd</button>
+      <button class="chip" data-f="bad">Lost ground</button>
+    </div>
+    <div id="list"></div>
+  </aside>
+  <main>
+    <div class="head">
+      <div>
+        <h2 id="title"></h2>
+        <p class="desc" id="desc"></p>
+      </div>
+      <span class="badge" id="result"></span>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="field"></canvas>
+      <div class="phase" id="phase"></div>
+      <div class="tip" id="tip"></div>
+    </div>
+    <div class="timeline">
+      <button class="ctl" id="playBtn">Play</button>
+      <div class="track" id="track">
+        <input type="range" id="slider" min="0" max="1" value="0" step="1" aria-label="Play timeline">
+      </div>
+      <select id="speed" aria-label="Playback speed">
+        <option value="0.25">0.25x</option><option value="0.5" selected>0.5x</option><option value="1">1x</option>
+      </select>
+      <label class="tg"><input type="checkbox" id="trails" checked> Trails</label>
+    </div>
+    <div class="cards">
+      <div class="card"><div class="l">Time since snap</div><div class="v" id="cTime">0.0 s</div></div>
+      <div class="card"><div class="l">Tracked receiver separation now</div><div class="v" id="cSep">-</div></div>
+      <div class="card"><div class="l">At scramble start</div><div class="v" id="cStart">-</div></div>
+      <div class="card"><div class="l">At the throw</div><div class="v" id="cThrow">-</div></div>
+      <div class="card"><div class="l">Separation gained</div><div class="v" id="cGain">-</div></div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--off)"></i>Offense</span>
+      <span><i style="background:var(--def)"></i>Defense</span>
+      <span><i style="background:var(--qb)"></i>Quarterback</span>
+      <span><i style="background:var(--target);box-shadow:0 0 0 2px #fff"></i>Tracked receiver (green line = gap to nearest defender)</span>
+      <span><i style="background:#8b5a2b"></i>Ball</span>
+      <span><i style="background:rgba(242,193,78,.35);border-radius:2px"></i>QB lane: the scramble starts when the QB leaves it (3+ yds sideways)</span>
+      <span><i style="background:#5aa7ff;border-radius:2px"></i>Line of scrimmage</span>
+    </div>
+    <p class="help">Drag the timeline or drag left and right on the field to scrub. Click any receiver to track his separation. Hover a dot to see the player. Space plays and pauses, arrow keys step one frame (0.1 s).</p>
+  </main>
+</div>
+  </section>
+
+  <section class="s" id="leaders">
+    <h2>Who gets open when the play breaks down</h2>
+    <p class="lead">Average separation gained during QB scrambles, receivers with at least 12 scramble snaps. Click a column to sort.</p>
+    <div class="two">
+      <div class="chart"><img src="__IMG_LEADERS__" alt="Leaderboard of separation gained during scrambles"></div>
+      <div>
+        <input class="search" id="lbSearch" placeholder="Search a player" aria-label="Search a player">
+        <div class="tw" style="max-height:620px;overflow-y:auto"><table class="t" id="lbTable"><thead><tr><th class="sort" data-k="rank">#</th><th class="sort" data-k="name">Player</th><th class="sort" data-k="pos">Pos</th><th class="sort r" data-k="snaps">Snaps</th><th class="sort r" data-k="gain">Avg gained</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="s" id="positions">
+    <h2>By position</h2>
+    <p class="lead">Running backs start scrambles the most open, often as checkdowns, and lose the most ground as defenders rally. Tight ends are the least likely to create new separation.</p>
+    <div class="tw"><table class="t" id="posTable"><thead><tr><th>Position</th><th class="r">Receiver snaps</th><th class="r">Separation at scramble start</th><th class="r">At the throw</th><th class="r">Avg gained</th><th class="r">Targets</th><th class="r">Catch %</th><th class="r">Targets that gained 1+ yd</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="s" id="takeaways">
+    <h2>Takeaways</h2>
+    <div class="take">
+      <div class="card"><h3>For coaches</h3><p>Drill scramble rules. A receiver who works for one more yard after the QB breaks the pocket turns a coin-flip throw into a likely completion.</p></div>
+      <div class="card"><h3>For broadcasters</h3><p>"Separation gained on the scramble" is a simple on-screen stat. Replay a play with the live gap line to show viewers who kept working.</p></div>
+      <div class="card"><h3>For scouts</h3><p>The leaderboard separates receivers who improvise well from those who stall. Pair it with film, since samples are 12 to 27 snaps per player.</p></div>
+    </div>
+  </section>
+
+  <section class="s" id="method">
+    <h2>Method and limits</h2>
+    <div class="two">
+      <div><ol class="m">
+        <li><b>Scramble plays:</b> PFF dropBackType contains "SCRAMBLE" and the pass was complete, incomplete or intercepted. Designed rollouts are excluded.</li>
+        <li><b>Scramble start:</b> first frame after the snap where the QB is more than 3 yards sideways from his snap position.</li>
+        <li><b>Separation:</b> distance from each route runner to the nearest defender in coverage, at scramble start and at the throw.</li>
+        <li><b>Target:</b> parsed from the play description and matched by last name to a route runner on that play. Throwaways are excluded.</li>
+        <li><b>Outcome:</b> completion from plays.csv. Interceptions count as incompletions.</li>
+      </ol></div>
+      <div><ul class="m">
+        <li>Association, not causation. The QB may already be looking at the receiver who is working.</li>
+        <li>Tracking ends 0.5 s after the throw, so outcomes come from plays.csv.</li>
+        <li>The 3-yard sideways rule is an estimate of when the scramble starts.</li>
+        <li>Eight weeks of data. The team-wide result is solid; individual player numbers are noisy.</li>
+      </ul></div>
+    </div>
+  </section>
+</main>
+<footer><div class="wrap">Data: NFL Big Data Bowl regional event data (<a href="https://github.com/ThompsonJamesBliss/nfl-big-data-bowl-regional-event-data">source</a>), NFL Next Gen Stats tracking and PFF scouting, 2021 weeks 1-8. Built with Kiro. Code and full write-up are in this repository's README.</div></footer>
+
+<script>
+const DATA = /*__DATA__*/{};
+(function () {
+  const S = DATA.stats; S.p = (+S.p).toFixed(3); S.odds = (+S.odds).toFixed(2); S.oddsP = (+S.oddsP) < 0.001 ? "< 0.001" : (+S.oddsP).toFixed(4); const pct = (x) => (x * 100).toFixed(1) + "%", $$ = (id) => document.getElementById(id);
+  $$("hiPct").textContent = pct(S.hiPct); $$("loPct").textContent = pct(S.loPct);
+  $$("hiKN").textContent = S.hiK + " of " + S.hiN; $$("loKN").textContent = S.loK + " of " + S.loN;
+  $$("p1").textContent = S.p; $$("or1").textContent = S.odds; $$("orp1").textContent = S.oddsP.startsWith("<") ? S.oddsP : "= " + S.oddsP;
+  const kp = [[S.throws, "Scramble throws, 2021 weeks 1-8"], [S.plays, "Plays with a measurable scramble window"], [S.median.toFixed(1) + " s", "Median scramble, QB leaves pocket to throw"],
+    [S.matched, "Targeted throws analyzed (throwaways excluded)"], [S.p, "Two-sided p-value, 1+ yd vs less"], [S.odds + "x", "Odds of a catch per extra yard gained"], [S.qualified, "Receivers on the leaderboard (12+ snaps)"]];
+  kp.forEach(([v, l]) => { const d = document.createElement("div"); d.className = "kpi";
+    const a = document.createElement("div"); a.className = "v"; a.textContent = v; const b = document.createElement("div"); b.className = "l"; b.textContent = l;
+    d.append(a, b); $$("kpis").append(d); });
+  const row = (cells, cls) => { const tr = document.createElement("tr"); cells.forEach((c, i) => { const td = document.createElement("td"); td.textContent = c; if (cls && cls[i]) td.className = cls[i]; tr.append(td); }); return tr; };
+  DATA.buckets.forEach(b => $$("bucketTable").tBodies[0].append(row([b.label, b.n, b.k, pct(b.pct), Math.round(b.lo * 100) + "% to " + Math.round(b.hi * 100) + "%"], ["", "r", "r", "r", "r"])));
+  DATA.positions.forEach(p => $$("posTable").tBodies[0].append(row([p.pos, p.snaps.toLocaleString(), p.s0.toFixed(2) + " yd", p.s1.toFixed(2) + " yd", (p.gain >= 0 ? "+" : "") + p.gain.toFixed(2) + " yd", p.targets, pct(p.cmp), pct(p.share1)], ["", "r", "r", "r", "r", "r", "r", "r"])));
+  let rows = DATA.leaders.map((l, i) => Object.assign({ rank: i + 1 }, l)), key = "rank", asc = true;
+  const max = Math.max(...rows.map(r => Math.abs(r.gain)));
+  function drawLB() {
+    const q = $$("lbSearch").value.toLowerCase(), tb = $$("lbTable").tBodies[0]; tb.replaceChildren();
+    rows.filter(r => r.name.toLowerCase().includes(q)).sort((a, b) => (a[key] > b[key] ? 1 : a[key] < b[key] ? -1 : 0) * (asc ? 1 : -1)).forEach(r => {
+      const tr = row([r.rank, r.name, r.pos, r.snaps, (r.gain >= 0 ? "+" : "") + r.gain.toFixed(2) + " yd", ""], ["", "", "", "r", "r", ""]);
+      const s = document.createElement("span"); s.className = "bar" + (r.gain < 0 ? " n" : ""); s.style.width = Math.round(Math.abs(r.gain) / max * 80) + "px"; tr.lastChild.append(s); tb.append(tr); });
+  }
+  $$("lbSearch").oninput = drawLB;
+  document.querySelectorAll("#lbTable th.sort").forEach(th => th.onclick = () => { asc = key === th.dataset.k ? !asc : th.dataset.k === "rank" || th.dataset.k === "name"; key = th.dataset.k; drawLB(); });
+  drawLB();
+})();
+
+const PLAYS = /*__PLAYS__*/[];
+let viewerActive = false;
+document.getElementById("viewer").addEventListener("pointerenter", () => viewerActive = true);
+document.getElementById("viewer").addEventListener("pointerleave", () => viewerActive = false);
+const $ = (id) => document.getElementById(id);
+const cv = $("field"), ctx = cv.getContext("2d");
+let play = null, fi = 0, tracked = null, timer = null, filter = "all", view = null, hoverId = null;
+
+function renderList() {
+  const list = $("list"); list.replaceChildren();
+  PLAYS.filter(p => filter === "all" || (filter === "good" ? p.gained >= 1 : p.gained < 0)).forEach(p => {
+    const el = document.createElement("div");
+    el.className = "play" + (play && p.key === play.key ? " on" : "");
+    const t = document.createElement("div"); t.className = "t"; t.textContent = p.title.split(",")[0];
+    const m = document.createElement("div"); m.className = "m";
+    const a = document.createElement("span"); a.textContent = p.title.split(", ").slice(1).join(", ");
+    const b = document.createElement("span"); b.className = p.gained >= 0 ? "pos" : "neg";
+    b.textContent = (p.gained >= 0 ? "+" : "") + p.gained.toFixed(1) + " yd, " + (p.result === "Complete" ? "C" : "Inc");
+    m.append(a, b); el.append(t, m);
+    el.onclick = () => load(p);
+    list.append(el);
+  });
+}
+
+function load(p) {
+  stop(); play = p; tracked = p.target; fi = 0;
+  $("title").textContent = p.title;
+  $("desc").textContent = "Q" + p.q + ", " + ["", "1st", "2nd", "3rd", "4th"][p.down] + " & " + p.togo + ". " + p.desc;
+  const r = $("result"); r.textContent = p.result; r.className = "badge " + (p.result === "Complete" ? "C" : "X");
+  const n = p.ball.length; $("slider").max = n - 1; $("slider").value = 0;
+  // camera: fit everyone over the whole play, with padding
+  let xs = [], ys = [];
+  p.players.forEach(pl => pl.xy.forEach(([x, y]) => { if (x >= 0) { xs.push(x / 10); ys.push(y / 10); } }));
+  const x0 = Math.max(0, Math.min(...xs) - 5), x1 = Math.min(120, Math.max(...xs) + 5);
+  view = { x0, x1 };
+  document.querySelectorAll(".mark").forEach(m => m.remove());
+  [["snap", "Snap", p.snap], ["start", "Scramble starts", p.start], ["throw", "Throw", p.throw]].forEach(([c, label, f]) => {
+    const m = document.createElement("div"); m.className = "mark " + c; m.textContent = label;
+    m.style.left = ((f - p.f0) / (n - 1) * 100) + "%"; $("track").append(m);
+  });
+  $("cStart").textContent = p.sepStart.toFixed(1) + " yd";
+  $("cThrow").textContent = p.sepThrow.toFixed(1) + " yd";
+  const g = $("cGain"); g.textContent = (p.gained >= 0 ? "+" : "") + p.gained.toFixed(1) + " yd"; g.className = "v " + (p.gained >= 0 ? "pos" : "neg");
+  renderList(); resize();
+}
+
+function resize() {
+  if (!view) return;
+  const w = cv.parentElement.clientWidth, ratio = 53.3 / (view.x1 - view.x0);
+  const h = Math.min(w * ratio, window.innerHeight * 0.62);
+  const dpr = window.devicePixelRatio || 1;
+  cv.style.height = h + "px"; cv.width = w * dpr; cv.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+const sx = (x) => (x - view.x0) / (view.x1 - view.x0) * cv.clientWidth;
+const sy = (y) => (53.3 - y) / 53.3 * cv.clientHeight;
+const at = (pl, f) => { const v = pl.xy[f]; return v && v[0] >= 0 ? [v[0] / 10, v[1] / 10] : null; };
+
+function nearestDef(f, pt) {
+  let best = null;
+  play.players.forEach(pl => { if (pl.r !== "Coverage") return; const q = at(pl, f); if (!q) return;
+    const d = Math.hypot(q[0] - pt[0], q[1] - pt[1]); if (!best || d < best.d) best = { d, q }; });
+  return best;
+}
+
+function draw() {
+  const W = cv.clientWidth, H = cv.clientHeight, p = play, f = fi, frame = p.f0 + f;
+  ctx.fillStyle = "#2f6b3a"; ctx.fillRect(0, 0, W, H);
+  for (let x = 0; x <= 120; x += 5) { // yard lines
+    if (x < view.x0 - 1 || x > view.x1 + 1) continue;
+    ctx.strokeStyle = x % 10 === 0 ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.22)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(sx(x), 0); ctx.lineTo(sx(x), H); ctx.stroke();
+    if (x % 10 === 0 && x > 10 && x < 110) { const yd = x <= 60 ? x - 10 : 110 - x;
+      ctx.fillStyle = "rgba(255,255,255,.5)"; ctx.font = "600 13px Segoe UI"; ctx.textAlign = "center"; ctx.fillText(yd, sx(x), H - 8); }
+  }
+  ctx.strokeStyle = "#5aa7ff"; ctx.lineWidth = 2; ctx.setLineDash([6, 5]); // line of scrimmage
+  ctx.beginPath(); ctx.moveTo(sx(p.los), 0); ctx.lineTo(sx(p.los), H); ctx.stroke(); ctx.setLineDash([]);
+  // QB lateral band: the 3-yard rule that defines the scramble start
+  const qb = p.players.find(pl => pl.id === p.qb), q0 = at(qb, p.snap - p.f0);
+  if (q0) { ctx.fillStyle = "rgba(242,193,78,.10)"; ctx.fillRect(sx(q0[0] - 8), sy(q0[1] + 3), sx(q0[0] + 2) - sx(q0[0] - 8), sy(q0[1] - 3) - sy(q0[1] + 3)); }
+  if ($("trails").checked) p.players.forEach(pl => {
+    if (!(pl.id === tracked || pl.id === p.qb)) return;
+    ctx.strokeStyle = pl.id === p.qb ? "rgba(242,193,78,.6)" : "rgba(54,211,153,.7)"; ctx.lineWidth = 2; ctx.beginPath();
+    let started = false; for (let k = 0; k <= f; k++) { const q = at(pl, k); if (!q) continue;
+      if (!started) { ctx.moveTo(sx(q[0]), sy(q[1])); started = true; } else ctx.lineTo(sx(q[0]), sy(q[1])); } ctx.stroke();
+  });
+  const tp = p.players.find(pl => pl.id === tracked), tq = tp && at(tp, f), nd = tq && nearestDef(f, tq);
+  if (nd) { ctx.strokeStyle = "#36d399"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(sx(tq[0]), sy(tq[1])); ctx.lineTo(sx(nd.q[0]), sy(nd.q[1])); ctx.stroke();
+    const mx = (sx(tq[0]) + sx(nd.q[0])) / 2, my = (sy(tq[1]) + sy(nd.q[1])) / 2;
+    ctx.font = "700 13px Segoe UI"; const label = nd.d.toFixed(1) + " yd", w = ctx.measureText(label).width + 10;
+    ctx.fillStyle = "#0d0f12dd"; ctx.fillRect(mx - w / 2, my - 20, w, 18); ctx.fillStyle = "#36d399"; ctx.textAlign = "center"; ctx.fillText(label, mx, my - 6); }
+  const R = Math.max(7, Math.min(11, W / 90));
+  p.players.forEach(pl => { const q = at(pl, f); if (!q) return;
+    ctx.beginPath(); ctx.arc(sx(q[0]), sy(q[1]), R, 0, Math.PI * 2);
+    ctx.fillStyle = pl.id === p.qb ? "#f2c14e" : pl.id === tracked ? "#36d399" : pl.o ? "#4a8fe7" : "#e5604f"; ctx.fill();
+    ctx.lineWidth = pl.id === tracked || pl.id === hoverId ? 3 : 1; ctx.strokeStyle = pl.id === tracked || pl.id === hoverId ? "#fff" : "rgba(0,0,0,.45)"; ctx.stroke();
+    ctx.fillStyle = pl.id === p.qb || pl.id === tracked ? "#111" : "#fff"; ctx.font = "700 " + Math.round(R * 0.95) + "px Segoe UI"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(pl.j, sx(q[0]), sy(q[1]) + 0.5); ctx.textBaseline = "alphabetic"; });
+  const b = p.ball[f]; if (b && b[0] >= 0) { ctx.fillStyle = "#8b5a2b"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(sx(b[0] / 10), sy(b[1] / 10), 6, 4, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  // phase + cards
+  const ph = frame < p.snap ? "Pre-snap" : frame < p.start ? "In the pocket" : frame <= p.throw ? "Scrambling" : "Ball in the air";
+  $("phase").textContent = ph + "  |  " + ((frame - p.snap) / 10).toFixed(1) + " s";
+  $("cTime").textContent = ((frame - p.snap) / 10).toFixed(1) + " s";
+  $("cSep").textContent = nd ? nd.d.toFixed(1) + " yd" : "-";
+  $("slider").value = f;
+}
+
+function stop() { clearInterval(timer); timer = null; $("playBtn").textContent = "Play"; }
+function start() {
+  if (fi >= play.ball.length - 1) fi = 0;
+  $("playBtn").textContent = "Pause";
+  timer = setInterval(() => { if (fi >= play.ball.length - 1) return stop(); fi++; draw(); }, 100 / +$("speed").value);
+}
+$("playBtn").onclick = () => timer ? stop() : start();
+$("slider").oninput = (e) => { stop(); fi = +e.target.value; draw(); };
+$("speed").onchange = () => { if (timer) { stop(); start(); } };
+$("trails").onchange = draw;
+document.querySelectorAll(".chip").forEach(c => c.onclick = () => {
+  document.querySelectorAll(".chip").forEach(x => x.classList.remove("on")); c.classList.add("on"); filter = c.dataset.f; renderList(); });
+
+function hit(e) {
+  const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  let best = null; play.players.forEach(pl => { const q = at(pl, fi); if (!q) return;
+    const d = Math.hypot(sx(q[0]) - mx, sy(q[1]) - my); if (d < 14 && (!best || d < best.d)) best = { d, pl }; });
+  return best && best.pl;
+}
+let drag = null;
+cv.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, f: fi, moved: false }; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener("pointermove", (e) => {
+  if (drag) { const dx = e.clientX - drag.x; if (Math.abs(dx) > 3) { drag.moved = true; stop();
+      fi = Math.max(0, Math.min(play.ball.length - 1, Math.round(drag.f + dx / cv.clientWidth * play.ball.length))); draw(); } return; }
+  const pl = hit(e), tip = $("tip");
+  hoverId = pl ? pl.id : null; draw();
+  if (!pl) { tip.style.display = "none"; return; }
+  const r = cv.getBoundingClientRect();
+  tip.textContent = "#" + pl.j + " " + pl.n + " (" + pl.pos + ")" + (pl.r ? ", " + pl.r : "") + (pl.r === "Pass Route" ? ". Click to track" : "");
+  tip.style.display = "block"; tip.style.left = Math.min(e.clientX - r.left + 14, r.width - tip.offsetWidth - 4) + "px"; tip.style.top = (e.clientY - r.top + 14) + "px";
+});
+cv.addEventListener("pointerup", (e) => { const was = drag; drag = null;
+  if (was && !was.moved) { const pl = hit(e); if (pl && pl.r === "Pass Route") { tracked = pl.id; draw(); } } });
+cv.addEventListener("pointerleave", () => { $("tip").style.display = "none"; hoverId = null; if (play) draw(); });
+document.addEventListener("keydown", (e) => {
+  if (!viewerActive) return;
+  if (e.code === "Space") { e.preventDefault(); timer ? stop() : start(); }
+  if (e.code === "ArrowRight") { stop(); fi = Math.min(play.ball.length - 1, fi + 1); draw(); }
+  if (e.code === "ArrowLeft") { stop(); fi = Math.max(0, fi - 1); draw(); }
+});
+window.addEventListener("resize", resize);
+renderList(); if (PLAYS.length) load(PLAYS.find(p => p.result === "Complete") || PLAYS[0]);
+</script>
+</body>
+</html>

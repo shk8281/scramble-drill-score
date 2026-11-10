@@ -1,0 +1,7 @@
+data/
+.venv/
+__pycache__/
+*.pyc
+logs/
+output/receivers.csv
+output/targets.csv

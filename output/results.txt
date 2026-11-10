@@ -1,0 +1,71 @@
+Scramble Drill Score -- full pipeline
+Output will be saved to C:\Users\dadra\Documents\scramble-drill-score\output\results.txt
+
+============================================================
+STEP 1  Separation metrics
+============================================================
+Plays kept   : 559
+Plays skipped: 8
+  no_snap: 3
+  no_throw: 2
+  no_scramble_start: 3
+
+Median scramble_duration_sec : 1.40 s
+
+Mean sep_gained and receiver count by officialPosition:
+                  mean_sep_gained  count
+officialPosition                        
+WR                       0.088316   1512
+TE                      -0.117089    589
+RB                      -0.760136    454
+FB                       0.181362     15
+QB                      -0.367162      1
+
+Saved output/receivers.csv (2,571 rows)
+
+============================================================
+STEP 2  Targeting parse
+============================================================
+
+Targeting parse report
+  Total plays in receivers.csv           : 559
+  Plays with a named target in desc      : 442  (79.1%)
+  Plays with no named target (throwaway) : 117
+  Named plays matched to exactly 1 recv  : 440
+  Named plays matched to 0 receivers     : 1
+  Named plays matched to 2+ receivers    : 1
+
+  Unmatched target tokens (token -> normalised, plays):
+    D.Harris                  -> harris                (1x)
+
+  Saved output/targets.csv (440 rows)
+
+Sanity checks passed: 440 matched plays, 52.7% overall completion rate.
+
+============================================================
+STEP 3  Headline chart and statistics
+============================================================
+
+Two-group completion rates
+  sep_gained >= 1 yd : 62.7%  (n=118, completions=74)
+  sep_gained <  1 yd : 49.1%  (n=322, completions=158)
+  Two-proportion z-test (two-sided): z=2.539, p=0.0111
+
+Logistic regression: completion ~ sep_gained + sep_start + C(officialPosition)
+  sep_gained coef  : +0.1999
+  Odds ratio       : 1.2212
+  p-value          : 0.0001
+
+Saved output/separation_payoff.png
+
+============================================================
+STEP 4  Leaderboard
+============================================================
+
+Leaderboard: 72 receivers with >= 12 scramble snaps
+  Saved output/leaderboard.csv (72 rows)
+  Saved output/leaderboard.png
+
+============================================================
+Done. All outputs are in output/
+============================================================
