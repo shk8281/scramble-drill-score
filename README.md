@@ -4,6 +4,12 @@
 
 An NFL Big Data Bowl entry using 2021 weeks 1-8 player tracking, PFF scouting, and play data.
 
+## Try the interactive results
+
+**[Open the interactive results page](https://shk8281.github.io/scramble-drill-score/)** (backup link if that one is still loading: [open via HTML preview](https://htmlpreview.github.io/?https://github.com/shk8281/scramble-drill-score/blob/main/docs/index.html))
+
+The page has every number and chart from this project plus a **play viewer**: pick a real 2021 scramble, drag the timeline, and watch the receiver's separation from the nearest defender change frame by frame. The page source is [`docs/index.html`](docs/index.html).
+
 ---
 
 ![Completion rate by separation gained during QB scramble](output/separation_payoff.png)
@@ -71,11 +77,14 @@ python -m venv .venv
 
 # 3. Run the full pipeline
 .venv\Scripts\python.exe main.py
+
+# 4. Rebuild the interactive results page (docs/index.html)
+.venv\Scripts\python.exe -m src.build_site
 ```
 
 On Mac/Linux replace `.venv\Scripts\python.exe` with `.venv/bin/python`.
 
-All outputs land in `output/`. Printed results are also written to `output/results.txt`.
+All outputs land in `output/`. Printed results are also written to `output/results.txt`. The interactive page is written to `docs/index.html`, which GitHub Pages serves from the `docs/` folder. A standalone play viewer is also saved to `output/play_viewer.html`.
 
 ---
 
