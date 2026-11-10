@@ -1,112 +1,103 @@
 # Scramble Drill Score
 
-**When the play breaks down, do receivers who keep working get the ball caught more often?**
+When the play breaks down, which receivers keep working to get open, and does it matter?
 
-An NFL Big Data Bowl entry using 2021 weeks 1-8 player tracking, PFF scouting, and play data.
+[![Showcase play: drag-through play viewer replaying a real 2021 scramble](output/showcase_play.gif)](https://shk8281.github.io/scramble-drill-score/)
 
-## Try the interactive results
+*Lee Smith goes from 0.6 to 7.1 yds of separation during Matt Ryan's scramble. Complete, 22 yds. The green line is his gap to the nearest defender, updated 10 times a second from real tracking data.*
 
-**[Open the interactive results page](https://shk8281.github.io/scramble-drill-score/)** (backup link if that one is still loading: [open via HTML preview](https://htmlpreview.github.io/?https://github.com/shk8281/scramble-drill-score/blob/main/docs/index.html))
+**Click the animation to open the interactive version** and replay any of 33 real scrambles yourself: drag the timeline, click any receiver to track him. ([backup link](https://htmlpreview.github.io/?https://github.com/shk8281/scramble-drill-score/blob/main/docs/index.html))
 
-The page has every number and chart from this project plus a **play viewer**: pick a real 2021 scramble, drag the timeline, and watch the receiver's separation from the nearest defender change frame by frame. The page source is [`docs/index.html`](docs/index.html).
+## TL;DR
 
----
+We built a metric that measures how much separation a WR, TE, or RB gains between the moment the QB leaves the pocket and the moment he throws.
 
-![Completion rate by separation gained during QB scramble](output/separation_payoff.png)
+Receivers who gained 1+ yard of separation during the scramble were caught **62.7%** of the time (74 of 118). Everyone else was caught **49.1%** of the time (158 of 322).
 
-## For coaches
+The gap holds up after controlling for how open the receiver was when the scramble started, so it is not just open receivers being open.
 
-When a quarterback scrambles, receivers have to improvise. This project measures whether that effort pays off.
+Coaches can drill and grade scramble rules, scouts can compare receivers, and broadcasters can explain broken plays live.
 
-Across 440 targeted scramble throws in 2021 weeks 1-8, receivers who gained at least one yard of separation from their nearest defender while the QB was scrambling were caught 62.7% of the time (74 of 118 targets). Receivers who did not gain that yard were caught only 49.1% of the time (158 of 322 targets). The difference is statistically meaningful (two-sided z-test, p = 0.011).
+## The insight
 
-A logistic regression controlling for starting separation and position confirms the pattern: each extra yard of separation gained during the scramble is associated with 22% higher odds of a completion (odds ratio 1.22, p = 0.0001).
+![Separation payoff](output/separation_payoff.png)
 
-**Coach the scramble drill.** Receivers who gain a yard or more after the QB leaves the pocket are caught about 63% of the time vs 49%. The gap is statistically meaningful, and it gives coaches a concrete number to drill toward.
+The payoff starts at about one yard. Receivers who gained 1 to 3 yards were caught 63.7% of the time, and those who gained more than 3 yards 60.5% (a small group of 38, so that dip is within the margin of error).
 
----
+Why does "lost more than 1 yd" (51.3%) edge out "held steady" (47.8%)? Those receivers are often running backs who start the scramble wide open as checkdowns (RBs average 6.1 yds from a defender at scramble start) and are still open at the throw even after losing ground.
+
+## Is it real, or just noise?
+
+We tested it on 440 targeted scramble throws:
+
+- **The gap is significant.** 62.7% vs 49.1% is a +13.6 point lift. Two-sided two-proportion z-test p = 0.011, 95% confidence interval [3.4, 23.9] points.
+- **It is not just "open guys get caught."** A logistic regression of completion on separation gained, controlling for separation at scramble start and position, is highly significant (p = 0.0001). Each extra yard gained during the scramble multiplies the odds of a completion by 1.22x.
+
+Both point the same way: receivers who keep working during a scramble are associated with more completions.
 
 ## Who gets open when the play breaks down
 
-![Leaderboard: average separation gained during QB scrambles](output/leaderboard.png)
+![Leaderboard](output/leaderboard.png)
 
-Of the 72 receivers with at least 12 scramble snaps, Laviska Shenault gained the most separation on average. Wide receivers as a group averaged +0.09 yards, tight ends -0.12 yards, and running backs -0.76 yards. Three of the five worst separators are running backs, suggesting position-specific coaching emphasis.
+Among 72 receivers with 12+ scramble snaps, the top three are all wide receivers: Laviska Shenault, Courtland Sutton, and Stefon Diggs. Three of the bottom five are running backs, who start open in the flat and get run down. On average WRs gain +0.09 yds, TEs lose 0.12, and RBs lose 0.76.
 
----
+## Coaching takeaway
 
-## Numbers at a glance
+- Receivers: keep working after the QB breaks the pocket. Gaining 1+ yard of separation during the scramble is worth about +14 completion percentage points.
+- Tight ends: only 17.5% of TE targets gained a yard or more, the lowest of any position. That is the clearest room to improve.
 
-| Metric | Value |
+## How we measured it
+
+| Term | What it means |
 |---|---|
-| Scramble throws, weeks 1-8 | 567 |
-| Plays with a measurable scramble window | 559 |
-| Median scramble duration | 1.4 s |
-| Plays with a named target | 442 |
-| Plays matched to exactly one receiver | 440 |
-| Completion rate, sep gained >= 1 yd | 62.7% (74/118) |
-| Completion rate, sep gained < 1 yd | 49.1% (158/322) |
-| Two-sided z-test p-value | 0.011 |
-| sep_gained odds ratio (logistic) | 1.22 |
-| Logistic p-value | 0.0001 |
-| Receivers with 12+ scramble snaps | 72 |
+| Scramble throw | Dropback tagged SCRAMBLE by PFF that ended in a pass (complete, incomplete, or INT). Designed rollouts are excluded. |
+| Scramble start | First moment the QB moves more than 3 yards sideways from where he took the snap |
+| Separation | Distance from the receiver to the nearest defender in coverage |
+| Separation gained | Separation at the throw minus separation at scramble start |
+| Target / result | Receiver named in the play description, matched by last name to a route runner on that play; result from plays.csv. Throwaways are excluded. |
 
----
+Data: 2021 NFL season Weeks 1-8 Next Gen Stats tracking (10 frames/sec) + PFF scouting data; 567 scramble throws, 559 with a measurable scramble window, 440 matched targets.
 
-## Method
+## Assumptions & limitations
 
-**Scramble start:** The first tracking frame between snap and throw where the QB (PFF role "Pass") has moved more than 3 yards laterally from his snap position on the y-axis of the field.
+- Association, not causation. The QB may already be looking at the receiver who is working.
+- Tracking ends 0.5s after the throw, so catch point and yards after catch are not measured; outcomes come from plays.csv.
+- Scramble start is a simple 3-yard rule, not a hand-labeled moment.
+- Separation uses the nearest defender, not necessarily the defender assigned to that receiver.
+- Interceptions count as incompletions, and throwaways are excluded.
+- The overall effect is statistically significant, but per-player rankings rest on small samples (12 to 27 scramble snaps each), so individual names are directional, not definitive.
 
-**Separation:** Euclidean distance from each "Pass Route" receiver to the nearest "Coverage" defender at scramble-start and at the throw frame, computed with NumPy broadcasting. `sep_gained = sep_throw - sep_start`.
-
-**Target:** Parsed from the play description using a regex that matches constructions like `"pass short right to T.Hill"` or `"pass incomplete deep left intended for D.Hopkins"`. Plays with no named receiver (throwaways) are excluded entirely and not counted as incompletions.
-
-**Outcomes:** Come from `plays.csv`. Tracking ends 0.5 s after the throw so play results are never read from tracking data.
-
----
-
-## How to run
+## Run it
 
 ```bash
-# 1. Get the data
+# 1. Get the data: copy the data/ folder from this repo into the project root
 git clone https://github.com/ThompsonJamesBliss/nfl-big-data-bowl-regional-event-data
-# Copy the data/ folder from that repo into this one.
 
-# 2. Create and populate the virtual environment (Windows)
+# 2. Install
 python -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv/bin/python -m pip install -r requirements.txt      # Windows: .venv\Scripts\python.exe
 
-# 3. Run the full pipeline
-.venv\Scripts\python.exe main.py
+# 3. Run the pipeline (charts, tables, results.txt in output/)
+.venv/bin/python main.py
 
-# 4. Rebuild the interactive results page (docs/index.html)
-.venv\Scripts\python.exe -m src.build_site
+# 4. Rebuild the interactive page (docs/index.html) and play viewer
+.venv/bin/python -m src.build_site
 ```
 
-On Mac/Linux replace `.venv\Scripts\python.exe` with `.venv/bin/python`.
+File map:
 
-All outputs land in `output/`. Printed results are also written to `output/results.txt`. The interactive page is written to `docs/index.html`, which GitHub Pages serves from the `docs/` folder. A standalone play viewer is also saved to `output/play_viewer.html`.
+- `main.py`: one command, runs the pipeline and writes every chart and table.
+- `src/load.py`: reads the CSVs and loads tracking for selected plays.
+- `src/scramble.py`: finds scramble throws and merges PFF roles.
+- `src/separation.py`: finds snap, scramble start, and throw, and computes each receiver's separation gained.
+- `src/target.py`: finds the targeted receiver and attaches the play result.
+- `src/charts.py`: builds the payoff chart, the leaderboard, and the statistics.
+- `src/build_viewer.py`, `src/build_site.py`: build the interactive play viewer and results page.
+- `docs/index.html`: the interactive results page served by GitHub Pages.
+- `output/`: generated charts, tables, `results.txt`, and the showcase animation.
 
----
+## Built with
 
-## Limitations
+Python (pandas, numpy, matplotlib, scipy, statsmodels). Developed with Kiro (project rules in `.kiro/steering/project.md`).
 
-- Association, not causation. Receivers who keep working may be doing so because the QB is already looking their way.
-- Tracking ends 0.5 s after the throw. Play outcomes (completion, interception) come from `plays.csv`, not from tracking.
-- Scramble start is an estimate based on lateral displacement. Some scrambles that stay close to the pocket may be missed, designed rollouts are excluded using PFF's dropBackType.
-- Throwaways are excluded. If QBs throw away more often when no receiver is open, the completion rates here overstate what coaches should expect on average.
-- Eight weeks of data and roughly 440 matched targets. The overall pattern is robust, but individual player numbers are noisy.
-- Interceptions are counted as incompletions.
-
----
-
-## Built with Kiro
-
-The project steering file (`.kiro/steering/project.md`) defines data conventions, PFF role spellings, and coding standards. The pipeline code in `src/` was generated and iterated with [Kiro](https://kiro.dev), an AI-powered development environment.
-
----
-
-## Data credit
-
-- **NFL Big Data Bowl** regional event data via [ThompsonJamesBliss/nfl-big-data-bowl-regional-event-data](https://github.com/ThompsonJamesBliss/nfl-big-data-bowl-regional-event-data), originally from the NFL Big Data Bowl 2023
-- **NFL Next Gen Stats** player tracking
-- **Pro Football Focus (PFF)** scouting grades and role assignments
+Data: NFL Big Data Bowl regional event data ([source](https://github.com/ThompsonJamesBliss/nfl-big-data-bowl-regional-event-data)), originally from the NFL Big Data Bowl 2023, with NFL Next Gen Stats tracking and PFF scouting data.
